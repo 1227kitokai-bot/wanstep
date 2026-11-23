@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WanStep</title>
+<title>WanStep</title><meta name="wanstep-version" content="v14">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -3310,7 +3310,7 @@ async function webChat(system, messages) {
     const o = {}; let x; const re = /"(jp|ro|en|fb|fix)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
     while ((x = re.exec(t))) { try { o[x[1]] = JSON.parse('"' + x[2] + '"'); } catch (e2) { o[x[1]] = x[2]; } }
     if (/"done"\s*:\s*true/.test(t)) o.done = true;
-    if (o.jp) return o; throw e;
+    if (o.jp) return o; throw { code: "failed", info: "parse; len " + t.length + "; " + t.slice(0, 60) };
   }
 }
 try { window.claude && claude.use("tts").then(t => { CTTS = t; }).catch(() => {}); } catch (e) {}
@@ -3374,7 +3374,7 @@ Keep the whole reply short (under 120 words in total; "fb" at most 2 short sente
     msgs.forEach(m => convo.push(m.who === "staff" ? { role: "assistant", content: JSON.stringify({ jp: m.jp, ro: m.ro, en: m.en }) } : { role: "user", content: "Learner: " + m.jp }));
     try {
       ctrl = new AbortController();
-      const r = SAMPLE ? await SAMPLE.json(convo, { signal: ctrl.signal, cache: false, modelTier: "default" }) : await webChat(sys, [{ role: "user", content: "Start the conversation: greet the customer as they come in." }, ...convo.slice(1)]);
+      const r = SAMPLE ? await SAMPLE.json(convo, { signal: ctrl.signal, cache: false, modelTier: "default" }) : await webChat(sys, [{ role: "user", content: "Start the conversation: greet the customer as they come in." }, ...convo.slice(1)]).catch(e => e && e.code === "rate_limited" ? Promise.reject(e) : webChat(sys, [{ role: "user", content: "Start the conversation: greet the customer as they come in." }, ...convo.slice(1)]));
       const me = msgs.length && msgs[msgs.length - 1].who === "me" ? msgs[msgs.length - 1] : null;
       if (me) { me.fb = r.fb || ""; me.fix = r.fix || ""; }
       msgs.push({ who: "staff", jp: r.jp || "", ro: r.ro || "", en: r.en || "", done: !!r.done });
