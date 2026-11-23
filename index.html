@@ -3306,7 +3306,12 @@ async function webChat(system, messages) {
   if (r.status === 429) throw { code: "rate_limited" };
   if (!r.ok) throw { code: "failed", info: r.status + " " + (d.error || "") + " " + (d.detail || "") };
   const t = String(d.text || ""), m = t.match(/\{[\s\S]*\}/);
-  return JSON.parse(m ? m[0] : t);
+  try { return JSON.parse(m ? m[0] : t); } catch (e) {
+    const o = {}; let x; const re = /"(jp|ro|en|fb|fix)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    while ((x = re.exec(t))) { try { o[x[1]] = JSON.parse('"' + x[2] + '"'); } catch (e2) { o[x[1]] = x[2]; } }
+    if (/"done"\s*:\s*true/.test(t)) o.done = true;
+    if (o.jp) return o; throw e;
+  }
 }
 try { window.claude && claude.use("tts").then(t => { CTTS = t; }).catch(() => {}); } catch (e) {}
 function aiSpeak(text) {
@@ -3336,7 +3341,7 @@ Rules:
 - After the learner replies, judge their Japanese. If it has a mistake or sounds unnatural, explain kindly in simple English (max 2 sentences) and give a corrected natural version. If it is fine, give short praise in English and leave "fix" empty.
 - If the learner writes in English or romaji, still understand them, and in feedback show how to say it in Japanese.
 - End the conversation naturally after about 6 to 8 exchanges (e.g. the customer pays and leaves) by setting "done" to true.
-Reply ONLY with JSON: {"jp": staff line in Japanese, "ro": romaji of jp, "en": English meaning of jp, "fb": feedback on the learner's last message in English or "" on the first turn, "fix": corrected Japanese for the learner's last message or "", "done": true|false}`;
+Keep the whole reply short (under 120 words in total; "fb" at most 2 short sentences). No markdown, no code fences. Reply ONLY with JSON: {"jp": staff line in Japanese, "ro": romaji of jp, "en": English meaning of jp, "fb": feedback on the learner's last message in English or "" on the first turn, "fix": corrected Japanese for the learner's last message or "", "done": true|false}`;
   function draw() {
     app.innerHTML = `
       <div class="top"><button class="back" id="b">← ${sh.name}</button></div>
