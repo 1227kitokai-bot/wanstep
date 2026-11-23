@@ -3275,7 +3275,7 @@ function shop(sh) {
       <button class="btn" id="ai">Start free talk</button>
     </section>`;
   on("b", () => category(catOf(sh)));
-  on("ai", () => aiTalk(sh));
+  on("ai", () => { unlockAudio(); aiTalk(sh); });
   app.querySelectorAll("[data-v]").forEach(b => b.onclick = () => talk(sh, +b.dataset.v));
 }
 /* ================= AI FREE TALK ================= */
@@ -3284,12 +3284,21 @@ const AI_API = "https://wanstep-api.1227kitokai.workers.dev";
 const ON_WEB = /github\.io$/.test(location.hostname);
 const aiOK = () => !!SAMPLE || ON_WEB;
 let aiAudio = null;
+function unlockAudio() {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), src = actx.createBufferSource(); src.buffer = b; src.connect(actx.destination); src.start(0); } catch (e) {}
+}
+let aiSrc = null;
 async function webTTS(text) {
   const r = await fetch(AI_API + "/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-  if (!r.ok) throw new Error("tts " + r.status);
-  const url = URL.createObjectURL(await r.blob());
+  if (!r.ok) { let d = {}; try { d = await r.json(); } catch (e) {} throw new Error("voice " + r.status + " " + (d.status || "")); }
+  const buf = await r.arrayBuffer();
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === "suspended") await actx.resume();
+  const ab = await new Promise((ok, ng) => actx.decodeAudioData(buf, ok, ng));
+  if (aiSrc) try { aiSrc.stop(); } catch (e) {}
   if (aiAudio) aiAudio.pause();
-  aiAudio = new Audio(url); await aiAudio.play();
+  aiSrc = actx.createBufferSource(); aiSrc.buffer = ab; aiSrc.connect(actx.destination); aiSrc.start(0);
 }
 async function webChat(system, messages) {
   const r = await fetch(AI_API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system, messages }) });
@@ -3301,11 +3310,11 @@ async function webChat(system, messages) {
 }
 try { window.claude && claude.use("tts").then(t => { CTTS = t; }).catch(() => {}); } catch (e) {}
 function aiSpeak(text) {
-  if (ON_WEB) { webTTS(text).catch(() => tts(text)); return; }
+  if (ON_WEB) { webTTS(text).catch(e => { const st = document.getElementById("micst"); if (st) st.textContent = "(" + (e && e.message || "voice error") + ")"; tts(text); }); return; }
   if (CTTS) CTTS.speak(text, { language: "ja", voice: "airy", rate: .95 }).catch(e => { if (!e || e.code !== "busy") tts(text); });
   else tts(text);
 }
-app.addEventListener("click", e => { const b = e.target.closest("[data-aisay]"); if (b) aiSpeak(b.dataset.aisay); });
+app.addEventListener("click", e => { const b = e.target.closest("[data-aisay]"); if (b) { unlockAudio(); aiSpeak(b.dataset.aisay); } });
 try { window.claude && claude.use("dictation").then(d => { DICT = d; }).catch(() => {}); } catch (e) {}
 const WSR = window.SpeechRecognition || window.webkitSpeechRecognition;
 try { window.claude && claude.use("sample").then(s => { SAMPLE = s; document.querySelectorAll(".ai-entry").forEach(e => e.hidden = !aiOK()); }).catch(() => {}); } catch (e) {}
@@ -3346,11 +3355,11 @@ Reply ONLY with JSON: {"jp": staff line in Japanese, "ro": romaji of jp, "en": E
         ${WSR || DICT ? `<p class="muted" id="micst" style="margin:-4px 0 0;font-size:13px">Tap 🎤 and speak Japanese, then check the text and press Send.</p>` : ""}`}`;
     setTab("town");
     on("b", () => { if (ctrl) ctrl.abort(); shop(sh); });
-    on("again", () => aiTalk(sh));
+    on("again", () => { unlockAudio(); aiTalk(sh); });
     const f = document.getElementById("f");
     const mic = document.getElementById("mic");
     if (mic) mic.onclick = () => listen(mic);
-    if (f) f.onsubmit = e => { e.preventDefault(); const v = document.getElementById("in").value.trim(); if (v && !busy) send(v); };
+    if (f) f.onsubmit = e => { e.preventDefault(); unlockAudio(); const v = document.getElementById("in").value.trim(); if (v && !busy) send(v); };
     const last = app.querySelector(".chat .bubble:last-child"); if (last) last.scrollIntoView({ block: "nearest" });
     if (!busy && f) document.getElementById("in").focus({ preventScroll: true });
   }
