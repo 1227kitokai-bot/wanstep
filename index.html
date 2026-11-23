@@ -3291,11 +3291,11 @@ async function webTTS(text) {
   if (aiAudio) aiAudio.pause();
   aiAudio = new Audio(url); await aiAudio.play();
 }
-async function webChat(messages) {
-  const r = await fetch(AI_API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }) });
+async function webChat(system, messages) {
+  const r = await fetch(AI_API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system, messages }) });
   const d = await r.json().catch(() => ({}));
   if (r.status === 429) throw { code: "rate_limited" };
-  if (!r.ok) throw { code: "failed" };
+  if (!r.ok) throw { code: "failed", info: r.status + " " + (d.error || "") + " " + (d.detail || "") };
   const t = String(d.text || ""), m = t.match(/\{[\s\S]*\}/);
   return JSON.parse(m ? m[0] : t);
 }
@@ -3360,7 +3360,7 @@ Reply ONLY with JSON: {"jp": staff line in Japanese, "ro": romaji of jp, "en": E
     msgs.forEach(m => convo.push(m.who === "staff" ? { role: "assistant", content: JSON.stringify({ jp: m.jp, ro: m.ro, en: m.en }) } : { role: "user", content: "Learner: " + m.jp }));
     try {
       ctrl = new AbortController();
-      const r = SAMPLE ? await SAMPLE.json(convo, { signal: ctrl.signal, cache: false, modelTier: "default" }) : await webChat(convo);
+      const r = SAMPLE ? await SAMPLE.json(convo, { signal: ctrl.signal, cache: false, modelTier: "default" }) : await webChat(sys, [{ role: "user", content: "Start the conversation: greet the customer as they come in." }, ...convo.slice(1)]);
       const me = msgs.length && msgs[msgs.length - 1].who === "me" ? msgs[msgs.length - 1] : null;
       if (me) { me.fb = r.fb || ""; me.fix = r.fix || ""; }
       msgs.push({ who: "staff", jp: r.jp || "", ro: r.ro || "", en: r.en || "", done: !!r.done });
@@ -3368,7 +3368,7 @@ Reply ONLY with JSON: {"jp": staff line in Japanese, "ro": romaji of jp, "en": E
       if (r.jp) aiSpeak(r.jp);
     } catch (e) {
       busy = false;
-      msgs.push({ who: "staff", jp: "", ro: "", en: e && e.code === "rate_limited" ? "Too many messages right now. Please wait a little and try again." : "Sorry, the AI could not answer. Please try again." });
+      msgs.push({ who: "staff", jp: "", ro: "", en: e && e.code === "rate_limited" ? "Too many messages right now. Please wait a little and try again." : "Sorry, the AI could not answer. Please try again." + (e && e.info ? " (" + e.info + ")" : e && e.message ? " (" + e.message + ")" : "") });
       draw();
     }
   }
