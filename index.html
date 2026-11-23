@@ -1784,7 +1784,7 @@ const AUDIO_INDEX = {"あ":["kana",0,4464],"い":["kana",4464,5184],"う":["kana
 const audioBuf = {}, audioLoad = {}, clipURL = {};
 let curAudio = null;
 function loadBundle(n) {
-  return audioLoad[n] || (audioLoad[n] = fetch(`audio/${n}.mp3?v=hd2`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+  return audioLoad[n] || (audioLoad[n] = fetch(`audio/${n}-v3.mp3`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
     .then(b => (audioBuf[n] = b)).catch(e => { delete audioLoad[n]; throw e; }));
 }
 function playClip(text) {
@@ -3282,8 +3282,8 @@ function talk(sh, lv = 0) {
       <div class="opts one ${talkView.ro ? "" : "hidero"}">${(order[t] || (order[t] = shuffle(turn.opts))).map(o => `<button class="opt reply ${wrong.has(o[0]) ? "wrong" : ""}" data-jp="${esc(o[0])}" ${wrong.has(o[0]) ? "disabled" : ""}><span class="jp" lang="ja">${o[0]}</span><span class="ro">${o[1]}</span>${hintLv >= 3 ? `<span class="en" style="display:block;font-size:13px;opacity:.75">${esc(o[2])}</span>` : ""}</button>`).join("")}</div>
       <p class="feedback" id="fb"></p>` : ""}`;
     on("b", () => shop(sh));
-    on("vro", () => { talkView.ro = !talkView.ro; draw(); });
-    on("ven", () => { talkView.en = !talkView.en; draw(); });
+    on("vro", () => { talkView.ro = !talkView.ro; keepSpeak = true; draw(); });
+    on("ven", () => { talkView.en = !talkView.en; keepSpeak = true; draw(); });
     on("hint", () => { hintLv = Math.min(3, hintLv + 1); keepSpeak = true; draw(); });
     if (turn && turn.say && !keepSpeak) speak(turn.say[0]);
     keepSpeak = false;
