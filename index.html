@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WanStep</title><meta name="wanstep-version" content="v14">
+<title>WanStep</title><meta name="wanstep-version" content="v15">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -3284,21 +3284,29 @@ const AI_API = "https://wanstep-api.1227kitokai.workers.dev";
 const ON_WEB = /github\.io$/.test(location.hostname);
 const aiOK = () => !!SAMPLE || ON_WEB;
 let aiAudio = null;
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 function unlockAudio() {
-  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume();
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume();
     const b = actx.createBuffer(1, 1, 22050), src = actx.createBufferSource(); src.buffer = b; src.connect(actx.destination); src.start(0); } catch (e) {}
+  try { if (!aiAudio) aiAudio = new Audio(); aiAudio.src = SILENT_WAV; const p = aiAudio.play(); if (p) p.catch(() => {}); } catch (e) {}
 }
 let aiSrc = null;
 async function webTTS(text) {
   const r = await fetch(AI_API + "/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
   if (!r.ok) { let d = {}; try { d = await r.json(); } catch (e) {} throw new Error("voice " + r.status + " " + (d.status || "")); }
-  const buf = await r.arrayBuffer();
-  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-  if (actx.state === "suspended") await actx.resume();
-  const ab = await new Promise((ok, ng) => actx.decodeAudioData(buf, ok, ng));
+  const blob = await r.blob();
   if (aiSrc) try { aiSrc.stop(); } catch (e) {}
-  if (aiAudio) aiAudio.pause();
-  aiSrc = actx.createBufferSource(); aiSrc.buffer = ab; aiSrc.connect(actx.destination); aiSrc.start(0);
+  try {
+    if (!aiAudio) aiAudio = new Audio();
+    aiAudio.pause(); aiAudio.src = URL.createObjectURL(blob); aiAudio.volume = 1;
+    await aiAudio.play(); return;
+  } catch (e1) {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state !== "running") await actx.resume();
+    const buf = await blob.arrayBuffer(); const ab = await new Promise((ok, ng) => actx.decodeAudioData(buf, ok, ng));
+    aiSrc = actx.createBufferSource(); aiSrc.buffer = ab; aiSrc.connect(actx.destination); aiSrc.start(0);
+    if (actx.state !== "running") throw new Error("audio blocked (" + (e1 && e1.name) + ")");
+  }
 }
 async function webChat(system, messages) {
   const r = await fetch(AI_API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system, messages }) });
