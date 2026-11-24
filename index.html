@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WanStep</title><meta name="wanstep-version" content="v20">
+<title>WanStep</title><meta name="wanstep-version" content="v22">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -479,6 +479,12 @@ h2 { font-family: var(--font-kana); font-weight: 800; }
 .linkbtn.danger { color: var(--bad); align-self: center; margin-top: 6px; }
 :root[data-text="large"] .wrap, :root[data-text="large"] .dbody { zoom: 1.12; }
 @media (prefers-reduced-motion: reduce) { .dpanel, .drawer { transition: none; } }
+.speakwrap { display: inline-flex; align-items: center; align-self: center; justify-self: end; gap: 0; }
+.flagbtn { border: 0; background: none; color: var(--muted); opacity: .45; font-size: 15px; padding: 4px 6px; margin-left: 2px; align-self: center; border-radius: 8px; }
+.flagbtn:hover, .flagbtn:focus-visible { opacity: 1; }
+.flagbtn[aria-pressed="true"] { opacity: 1; color: var(--bad); }
+.flagtoast { position: fixed; left: 50%; bottom: 96px; transform: translate(-50%, 20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 99px; font-weight: 700; font-size: 14px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 40; }
+.flagtoast.show { opacity: 1; transform: translate(-50%, 0); }
 </style>
 </head>
 <body>
@@ -1837,7 +1843,8 @@ function readingsHTML(k) {
   return `<div class="rds">${cell("On", "音", ro[0])}${cell("Kun", "訓", ro[1])}</div>`;
 }
 const firstReading = r => r.split("・")[0].replace(/[()]/g, "");
-const sayItem = (d, it) => d.kind === "kanji" ? (AUDIO_INDEX["K:" + it[0]] ? "K:" + it[0] : firstReading(it[2])) : it[0];
+// kanji: play the same clip as the reading row (read from kana, checked), not the kanji read on its own
+const sayItem = (d, it) => d.kind === "kanji" ? (AUDIO_INDEX[firstReading(it[2])] ? firstReading(it[2]) : AUDIO_INDEX["K:" + it[0]] ? "K:" + it[0] : firstReading(it[2])) : it[0];
 const sayWord = (d, w) => AUDIO_INDEX["W:" + w[0]] ? "W:" + w[0] : d.kind === "kanji" ? w[1] : w[0];
 
 // Pick the most natural Japanese voice the device has (neural / enhanced voices first)
@@ -3569,10 +3576,19 @@ function soundCheck(sec = "k1") {
   window.scrollTo(0, 0);
   let ng = {}; try { ng = JSON.parse(localStorage.getItem("wanstep-ng") || "{}"); } catch (x) {}
   const saveNg = () => { try { localStorage.setItem("wanstep-ng", JSON.stringify(ng)); } catch (x) {} };
-  const secs = [["hira", "あ"], ["kata", "ア"], ...KANJI_LEVELS.map(l => ["k" + l.n, "L" + l.n])];
-  const deck = sec === "hira" ? DECKS.hira : sec === "kata" ? DECKS.kata : levelDeck(+sec.slice(1));
-  const items = deck.groups.flatMap(g => g.items);
-  const label = it => deck.kind === "kanji" ? firstReading(it[2]) : romaji(it[0]);
+  const secs = [["hira", "あ"], ["kata", "ア"], ...KANJI_LEVELS.map(l => ["k" + l.n, "L" + l.n]), ["w1", "1字"]];
+  let deck, items;
+  if (sec === "w1") {   // one-kanji words (石, 花 …): the easiest to get wrong
+    const seen = {}; items = [];
+    const add = w => { if (w && w[0] && w[0].length === 1 && !seen[w[0]] && AUDIO_INDEX["W:" + w[0]]) { seen[w[0]] = 1; items.push([w[0], w[1], "W:" + w[0]]); } };
+    KANJI_LEVELS.forEach(l => { const d = levelDeck(l.n); (d.words || []).forEach(add); d.groups.forEach(g => (g.words || []).forEach(add)); });
+    Object.values(KANJI_EX).forEach(e => (e || []).forEach(add));
+    deck = { id: "w1", kind: "w1" };
+  } else {
+    deck = sec === "hira" ? DECKS.hira : sec === "kata" ? DECKS.kata : levelDeck(+sec.slice(1));
+    items = deck.groups.flatMap(g => g.items);
+  }
+  const label = it => deck.kind === "w1" ? it[1] : deck.kind === "kanji" ? firstReading(it[2]) : romaji(it[0]);
   const id = it => deck.id + ":" + it[0];
   const count = Object.keys(ng).length;
   app.innerHTML = `
@@ -3590,7 +3606,7 @@ function soundCheck(sec = "k1") {
     <div class="card" style="padding:4px 12px;gap:0">${items.map(it => `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line, #e5e7ef)">
       <span lang="ja" style="font-family:var(--font-kana);font-size:28px;font-weight:700;min-width:2.2em">${it[0]}</span>
       <span style="flex:1" lang="ja">${esc(label(it))}</span>
-      <button class="speak" data-say="${esc(sayItem(deck, it))}">▶</button>
+      <button class="speak" data-say="${esc(deck.kind === "w1" ? it[2] : sayItem(deck, it))}">▶</button>
       <button class="tog" data-ng="${esc(id(it))}" data-lbl="${esc(it[0] + " (" + label(it) + ")")}" aria-pressed="${!!ng[id(it)]}" style="min-width:48px">✗</button></div>`).join("")}</div>`;
   on("b", () => { clearTimeout(timer); notebook(); });
   app.querySelectorAll("[data-sec]").forEach(b => b.onclick = () => { clearTimeout(timer); soundCheck(b.dataset.sec); });
@@ -3702,7 +3718,7 @@ function reviewQuiz() {
 /* ================= APP MENU (☰) ================= */
 // Fill these in once the accounts exist. Empty = the button is hidden.
 const LINKS = { instagram: "https://www.instagram.com/wanstep.app/", instagramName: "@wanstep.app", feedbackForm: "", site: "https://1227kitokai-bot.github.io/wanstep/" };
-const APP_VERSION = "0.20 (beta)";
+const APP_VERSION = "0.22 (beta)";
 const voiceRate = () => state.speed === "slow" ? 0.8 : 1;
 function applyLook() {
   const r = document.documentElement;
@@ -3758,6 +3774,7 @@ function openMenu(view = "main") {
         ["How do I write characters?", "Open a deck, choose Write, and trace each stroke in the order shown by the numbers. Use Undo if a stroke goes wrong."],
         ["What is Free talk?", "In Town, some shops let you chat with AI staff. Type or speak in Japanese and Ume checks your sentence. AI can make mistakes, so treat it as practice."],
         ["Why does a voice sound different sometimes?", "Most words use recorded natural AI voices. If one is missing or your connection is slow, your device's own voice is used instead."],
+        ["Found a wrong or strange sound?", "All voices in WanStep are AI-generated, so a few may sound odd. Tap the small ⚑ next to any Play button to report it. Then open Check the sounds and press Copy list to send us your reports."],
         ["Can I move my progress to a new phone?", "Yes. Open Account & backup, copy your backup code, then paste it on the new device and press Restore."],
         ["Is WanStep free?", "Yes, while it's in beta. Thanks for helping us test it!"]].map(([q, a]) => `<details class="mfaq"><summary>${q}</summary><p class="muted">${a}</p></details>`).join("")}
       <button class="btn ghost" id="m-intro">Watch the intro again</button>
@@ -3831,6 +3848,43 @@ function openMenu(view = "main") {
 function closeMenu() { const ov = document.getElementById("drawer"); if (!ov) return; ov.classList.remove("open"); setTimeout(() => ov.remove(), 220); document.onkeydown = null; }
 document.getElementById("menuBtn").onclick = () => openMenu();
 applyLook();
+
+/* ⚑ Report a wrong sound: a small flag next to every Play button. Flags go into the same list as Check the sounds. */
+const NG_KEY = "wanstep-ng";
+const ngGet = () => { try { return JSON.parse(localStorage.getItem(NG_KEY) || "{}"); } catch (e) { return {}; } };
+const ngSet = o => { try { localStorage.setItem(NG_KEY, JSON.stringify(o)); } catch (e) {} };
+function addFlags(root) {
+  const ng = ngGet();
+  root.querySelectorAll("button.speak[data-say]").forEach(b => {
+    if (b.dataset.flagged || b.parentElement.querySelector("[data-ng]")) return;   // sound-check rows have their own ✗
+    b.dataset.flagged = 1;
+    const say = b.dataset.say, f = document.createElement("button");
+    f.className = "flagbtn"; f.type = "button"; f.dataset.flag = say; f.textContent = "⚑";
+    f.setAttribute("aria-label", "Report a wrong or strange sound"); f.title = "Wrong sound? Tap to report";
+    f.setAttribute("aria-pressed", String(!!ng["say:" + say]));
+    const wrap = document.createElement("span"); wrap.className = "speakwrap";
+    b.replaceWith(wrap); wrap.append(b, f);
+  });
+}
+function flagToast(t) {
+  let el = document.getElementById("flagtoast");
+  if (!el) { el = document.createElement("div"); el.id = "flagtoast"; el.className = "flagtoast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 1800);
+}
+app.addEventListener("click", e => {
+  const f = e.target.closest("[data-flag]"); if (!f) return;
+  e.stopPropagation();
+  const ng = ngGet(), k = "say:" + f.dataset.flag;
+  if (ng[k]) { delete ng[k]; flagToast("Report removed"); }
+  else {
+    const h = (document.querySelector("#app h1") || {}).textContent || "";
+    ng[k] = f.dataset.flag.replace(/^[KW]:/, "") + (h ? "  [" + h.trim().slice(0, 30) + "]" : "");
+    flagToast("Thanks! Noted as a wrong sound.");
+  }
+  ngSet(ng); f.setAttribute("aria-pressed", String(!!ng[k]));
+});
+new MutationObserver(() => addFlags(app)).observe(app, { childList: true, subtree: true });
+addFlags(app);
 
 function setTab(t) {
   document.getElementById("nav-basics").setAttribute("aria-current", t === "basics" ? "page" : "false");
