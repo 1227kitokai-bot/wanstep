@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WanStep</title><meta name="wanstep-version" content="v28">
+<title>WanStep</title><meta name="wanstep-version" content="v29">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -3602,6 +3602,11 @@ function soundCheck(sec = "k1") {
   }
   const label = it => deck.kind === "w1" ? it[1] : deck.kind === "kanji" ? firstReading(it[2]) : romaji(it[0]);
   const id = it => deck.id + ":" + it[0];
+  // every sound the card plays: [big text, label, say key, id]. Kanji: the big ▶ plus each example word (ON and KUN)
+  const rowsData = deck.kind === "kanji"
+    ? items.flatMap(it => [[it[0], "▶ " + label(it), sayItem(deck, it), id(it)],
+        ...(KANJI_EX[it[0]] || []).filter(Boolean).map(w => ["", w[0] + "（" + w[1] + "）", wordKey(w) || w[1], deck.id + ":" + it[0] + ":" + w[0]])])
+    : items.map(it => [it[0], label(it), deck.kind === "w1" ? it[2] : sayItem(deck, it), id(it)]);
   const count = Object.keys(ng).length;
   app.innerHTML = `
     <div class="top"><button class="back" id="b">← Back</button></div>
@@ -3615,11 +3620,11 @@ function soundCheck(sec = "k1") {
         <button class="linkbtn" id="clr" ${count ? "" : "disabled"}>Clear</button></div>
       <p class="feedback" id="fb" style="margin:0"></p></section>
     <div class="seg" style="grid-template-columns:repeat(4,1fr);gap:6px">${secs.map(([k, t]) => `<button class="tog" data-sec="${k}" aria-pressed="${k === sec}">${t}</button>`).join("")}</div>
-    <div class="card" style="padding:4px 12px;gap:0">${items.map(it => `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line, #e5e7ef)">
-      <span lang="ja" style="font-family:var(--font-kana);font-size:28px;font-weight:700;min-width:2.2em">${it[0]}</span>
-      <span style="flex:1" lang="ja">${esc(label(it))}</span>
-      <button class="speak" data-say="${esc(deck.kind === "w1" ? it[2] : sayItem(deck, it))}">▶</button>
-      <button class="tog" data-ng="${esc(id(it))}" data-lbl="${esc(it[0] + " (" + label(it) + ")")}" aria-pressed="${!!ng[id(it)]}" style="min-width:48px">✗</button></div>`).join("")}</div>`;
+    <div class="card" style="padding:4px 12px;gap:0">${rowsData.map(([big, lb, say, rid]) => `<div style="display:flex;align-items:center;gap:12px;padding:${big ? "10px" : "4px"} 0;border-${big ? "top" : "bottom"}:1px solid var(--line, #e5e7ef)">
+      <span lang="ja" style="font-family:var(--font-kana);font-size:28px;font-weight:700;min-width:2.2em">${big}</span>
+      <span style="flex:1" lang="ja">${esc(lb)}</span>
+      <button class="speak" data-say="${esc(say)}">▶</button>
+      <button class="tog" data-ng="${esc(rid)}" data-lbl="${esc((rid.split(":")[1] || "") + " " + lb.replace("▶ ", "漢字の下: "))}" aria-pressed="${!!ng[rid]}" style="min-width:48px">✗</button></div>`).join("")}</div>`;
   on("b", () => { clearTimeout(timer); notebook(); });
   app.querySelectorAll("[data-sec]").forEach(b => b.onclick = () => { clearTimeout(timer); soundCheck(b.dataset.sec); });
   app.querySelectorAll("[data-ng]").forEach(b => b.onclick = () => {
@@ -3730,7 +3735,7 @@ function reviewQuiz() {
 /* ================= APP MENU (☰) ================= */
 // Fill these in once the accounts exist. Empty = the button is hidden.
 const LINKS = { instagram: "https://www.instagram.com/wanstep.app/", instagramName: "@wanstep.app", feedbackForm: "", site: "https://1227kitokai-bot.github.io/wanstep/" };
-const APP_VERSION = "0.28 (beta)";
+const APP_VERSION = "0.29 (beta)";
 const voiceRate = () => state.speed === "slow" ? 0.8 : 1;
 function applyLook() {
   const r = document.documentElement;
