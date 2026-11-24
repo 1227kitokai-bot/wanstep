@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WanStep</title><meta name="wanstep-version" content="v22">
+<title>WanStep</title><meta name="wanstep-version" content="v23">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -1845,7 +1845,9 @@ function readingsHTML(k) {
 const firstReading = r => r.split("・")[0].replace(/[()]/g, "");
 // kanji: play the same clip as the reading row (read from kana, checked), not the kanji read on its own
 const sayItem = (d, it) => d.kind === "kanji" ? (AUDIO_INDEX[firstReading(it[2])] ? firstReading(it[2]) : AUDIO_INDEX["K:" + it[0]] ? "K:" + it[0] : firstReading(it[2])) : it[0];
-const sayWord = (d, w) => AUDIO_INDEX["W:" + w[0]] ? "W:" + w[0] : d.kind === "kanji" ? w[1] : w[0];
+// one-kanji words (石, 花, 口): use the checked reading clip (いし) when there is one; the word clip guessed the accent
+const wordKey = w => w[0].length === 1 && /[\u4e00-\u9fff]/.test(w[0]) && AUDIO_INDEX[w[1]] ? w[1] : AUDIO_INDEX["W:" + w[0]] ? "W:" + w[0] : null;
+const sayWord = (d, w) => wordKey(w) || (d.kind === "kanji" ? w[1] : w[0]);
 
 // Pick the most natural Japanese voice the device has (neural / enhanced voices first)
 let _voice = null;
@@ -2692,7 +2694,7 @@ function kanjiExamples(k) {
   const row = (label, jp, w) => `<div class="exrow"><span class="rdl">${label} <span lang="ja">${jp}</span></span>${w
     ? `<span class="exw" lang="ja">${okuri(w)[0].split("").map(c => c === k ? `<mark>${c}</mark>` : c).join("")}</span>
        <span class="exm"><strong lang="ja">${okuri(w)[1]}</strong> <span class="muted">${romaji(okuri(w)[1])}</span><br><span class="muted">${esc(w[2])}</span></span>
-       <button class="speak" data-say="${AUDIO_INDEX["W:" + w[0]] ? "W:" + w[0] : w[1]}">Play</button>`
+       <button class="speak" data-say="${wordKey(w) || w[1]}">Play</button>`
     : `<span class="muted" style="grid-column:2/-1">${has ? "This reading is rare in everyday Japanese." : `This kanji has no ${label.toLowerCase()} reading.`}</span>`}</div>`;
   let has;
   const ro = KANJI_RO[k] || ["", ""];
@@ -3718,7 +3720,7 @@ function reviewQuiz() {
 /* ================= APP MENU (☰) ================= */
 // Fill these in once the accounts exist. Empty = the button is hidden.
 const LINKS = { instagram: "https://www.instagram.com/wanstep.app/", instagramName: "@wanstep.app", feedbackForm: "", site: "https://1227kitokai-bot.github.io/wanstep/" };
-const APP_VERSION = "0.22 (beta)";
+const APP_VERSION = "0.23 (beta)";
 const voiceRate = () => state.speed === "slow" ? 0.8 : 1;
 function applyLook() {
   const r = document.documentElement;
